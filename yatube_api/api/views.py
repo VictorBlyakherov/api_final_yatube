@@ -65,6 +65,7 @@ class CommentViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthor]
         return [permission() for permission in permission_classes]
 
+
 class FollowViewSet(viewsets.ModelViewSet):
     queryset = Follow.objects.all()
     serializer_class = FollowSerializer

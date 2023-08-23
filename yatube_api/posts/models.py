@@ -23,7 +23,6 @@ class Post(models.Model):
     group = models.ForeignKey(
         Group, on_delete=models.CASCADE, null=True, related_name='posts')
 
-
     def __str__(self):
         return self.text
 
