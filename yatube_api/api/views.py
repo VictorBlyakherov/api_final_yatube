@@ -1,54 +1,45 @@
 from rest_framework import filters, permissions, viewsets
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import LimitOffsetPagination
+from rest_framework import mixins
 from rest_framework.permissions import (AllowAny, IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 
 from api.serializers import (CommentSerializer, FollowSerializer,
                              GroupSerializer, PostSerializer)
 from posts.models import Comment, Follow, Group, Post
+from api.permissions import CustomPermission
+from api.services import get_following
 
 
-class IsAuthor(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated
-
-    def has_object_permission(self, request, view, obj):
-        return obj.author == request.user
+class CreateListViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet
+):
+    pass
 
 
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     pagination_class = LimitOffsetPagination
+    permission_classes = [CustomPermission,]
 
     def perform_create(self, serializer) -> None:
         serializer.save(author=self.request.user)
 
-    def get_permissions(self):
-        if self.request.method == 'GET':
-            permission_classes = [AllowAny]
-        else:
-            permission_classes = [IsAuthor]
-        return [permission() for permission in permission_classes]
 
-
-class GroupViewSet(viewsets.ModelViewSet):
+class GroupViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
-    http_method_names = ['get', 'head']
-
-    def get_permissions(self):
-        if self.request.method == 'GET':
-            permission_classes = [AllowAny]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
+    permission_classes = [CustomPermission,]
 
 
 class CommentViewSet(viewsets.ModelViewSet):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
+    permission_classes = [CustomPermission,]
 
     def get_queryset(self):
         post = get_object_or_404(Post, pk=self.kwargs.get('pk1'))
@@ -58,27 +49,16 @@ class CommentViewSet(viewsets.ModelViewSet):
         post = get_object_or_404(Post, pk=self.kwargs.get('pk1'))
         serializer.save(author=self.request.user, post=post)
 
-    def get_permissions(self):
-        if self.request.method in permissions.SAFE_METHODS:
-            permission_classes = [IsAuthenticatedOrReadOnly]
-        else:
-            permission_classes = [IsAuthor]
-        return [permission() for permission in permission_classes]
 
-
-class FollowViewSet(viewsets.ModelViewSet):
+class FollowViewSet(CreateListViewSet):
     queryset = Follow.objects.all()
     serializer_class = FollowSerializer
-    http_method_names = ['get', 'post']
     filter_backends = (filters.SearchFilter,)
     search_fields = ('following__username',)
+    permission_classes = [IsAuthenticated,]
 
     def get_queryset(self):
-        return Follow.objects.filter(user=self.request.user).all()
+        return get_following(self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-
-    def get_permissions(self):
-        permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
